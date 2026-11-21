@@ -28,7 +28,7 @@ footer{border-top:1px solid var(--line);padding:25px 0;color:var(--muted);font-s
 <section class="ad-slot ad-slot--top" id="adTop" aria-label="Espacio publicitario"><strong>Publicidad</strong>Espacio reservado para un anuncio discreto. Se activará únicamente con una cuenta publicitaria aprobada.</section>
 
 <header><div class="wrap nav"><div class="brand">COMPARA<span>360</span></div><div class="navright"><label for="marketSelect" class="muted" style="font-size:12px;font-weight:700">PAÍS</label><select id="marketSelect" class="pill" aria-label="Seleccionar país" onchange="changeMarket(this.value)"><option value="ES">España</option><option value="FR">Francia</option><option value="DE">Alemania</option><option value="IT">Italia</option><option value="NL">Países Bajos</option><option value="BE">Bélgica</option><option value="PT">Portugal</option><option value="IE">Irlanda</option></select><button class="pill" onclick="scrollToSection('watch')">♡ Mis alertas <b id="watchCount">0</b></button><button class="pill active" onclick="scrollToSection('products')">Explorar ofertas</button></div></div></header>
-<section class="hero"><div class="wrap"><div class="eyebrow">Compra con cabeza</div><h1>El mejor precio.<br>Sin perder horas buscándolo.</h1><p>Compara tiendas, calcula el envío y sigue la evolución de los precios desde un solo sitio.</p><div class="searchbox"><input id="search" placeholder="Busca un producto, marca o modelo…" onkeydown="if(event.key==='Enter')renderProducts()"><button class="primary" onclick="renderProducts()">Buscar ofertas →</button></div><div id="marketNotice" class="demo-note" style="display:block">Mercado seleccionado: España · Los productos y precios visibles son datos ficticios de demostración, no ofertas reales.</div><div class="demo-note">MODO DEMOSTRACIÓN · Los productos y precios mostrados son datos ficticios, no ofertas actuales.</div></div></section>
+<section class="hero"><div class="wrap"><div class="eyebrow">Compra con cabeza</div><h1>El mejor precio.<br>Sin perder horas buscándolo.</h1><p>Compara tiendas, calcula el envío y sigue la evolución de los precios desde un solo sitio.</p><div class="searchbox"><input id="search" placeholder="Busca un producto, marca o modelo…" oninput="searchCatalog()" onkeydown="if(event.key==='Enter')searchCatalog()"><button class="primary" onclick="searchCatalog()">Buscar productos →</button></div><div id="marketNotice" class="demo-note" style="display:block">Mercado seleccionado: España · Los productos de demostración son ficticios. Las ofertas autorizadas aparecerán en una sección separada.</div><div class="demo-note">MODO DEMOSTRACIÓN · Los productos y precios mostrados son datos ficticios, no ofertas actuales.</div></div></section>
 <main class="wrap">
 <section class="section" id="realOffers" aria-labelledby="realOffersTitle" style="margin-top:0">
 <div class="sectionhead"><div><h2 id="realOffersTitle">Ofertas verificables</h2><p>Catálogo real separado de los productos ficticios de demostración.</p></div><span class="pill" id="realOffersCount">0 ofertas</span></div>
@@ -43,6 +43,7 @@ footer{border-top:1px solid var(--line);padding:25px 0;color:var(--muted);font-s
 <div class="modalback" id="modal" onclick="if(event.target===this)closeModal()"><div class="modal" id="modalContent"></div></div><div class="toast" id="toast"></div>
 <script>
 
+function searchCatalog(){ renderRealOffers(); renderProducts(); }
 const REAL_CATALOG_URL = './catalog/offers.json';
 let realOffers = [];
 function validHttpUrl(value){
@@ -75,15 +76,18 @@ function renderRealOffers(){
   const grid=document.getElementById('realOffersGrid');
   const count=document.getElementById('realOffersCount');
   if(!grid) return;
+  const q=(document.getElementById('search')?.value||'').trim().toLocaleLowerCase();
   const items=realOffers.filter(o=>
     o && o.market===market && o.currency==='EUR' &&
+    (!q || [o.product_title,o.merchant,o.brand,o.mpn,o.gtin,o.category].some(s=>String(s||'').toLocaleLowerCase().includes(q))) &&
     typeof o.product_title==='string' && o.product_title.trim() &&
     typeof o.merchant==='string' && o.merchant.trim() &&
     Number.isFinite(o.price) && o.price>=0 &&
     (o.shipping===null || o.shipping===undefined || Number.isFinite(o.shipping) && o.shipping>=0) &&
     validHttpUrl(o.url) &&
     typeof o.updated_at==='string' && !Number.isNaN(Date.parse(o.updated_at)) &&
-    Date.parse(o.updated_at)<=Date.now() + 300000
+    Date.parse(o.updated_at)<=Date.now() + 300000 &&
+    Date.parse(o.updated_at)>=Date.now() - 7*24*60*60*1000
   ).sort((a,b)=>{
     const aa=a.shipping===null||a.shipping===undefined?Infinity:a.price+a.shipping;
     const bb=b.shipping===null||b.shipping===undefined?Infinity:b.price+b.shipping;
@@ -92,7 +96,7 @@ function renderRealOffers(){
   count.textContent=items.length+' ofertas';
   grid.replaceChildren();
   if(!items.length){
-    grid.appendChild(safeText('div','Aún no hay ofertas reales autorizadas para '+c360Markets[market].name+'. Estamos preparando las conexiones con tiendas.','empty'));
+    grid.appendChild(safeText('div','No hay ofertas recientes verificables para '+c360Markets[market].name+(q?' que coincidan con tu búsqueda.':'. Todavía estamos preparando las conexiones con tiendas.'),'empty'));
     return;
   }
   items.forEach(o=>{
@@ -109,6 +113,7 @@ function renderRealOffers(){
     const detail=safeText('div','','offers');
     detail.append(safeText('div',shippingKnown?'Envío: '+formatOfferMoney(o.shipping,o.currency,market):'Envío: sin información','muted'));
     detail.append(safeText('div','Actualizado: '+new Date(o.updated_at).toLocaleString(c360Markets[market].locale),'muted'));
+    detail.append(safeText('div','Fuente: '+(o.source||'Catálogo autorizado')+' · Comprueba el precio en la tienda','muted'));
     card.append(detail);
     const actions=safeText('div','','cardactions');
     const a=safeText('a',o.affiliate?'Ir a la tienda · Enlace afiliado':'Ver en tienda','primary');
