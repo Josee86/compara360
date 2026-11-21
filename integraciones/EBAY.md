@@ -1,7 +1,7 @@
 # Conexión oficial eBay · COMPARA360
 
 ## Estado
-**Preparada, pero no activada.** No tenemos claves de desarrollador ni confirmación de aprobación para Buy APIs en producción. No hay consulta real realizada y no hemos publicado ningún precio de eBay.
+**Preparada, pero no activada.** No tenemos claves de desarrollador ni confirmación de aprobación para Buy APIs en producción. La prueba funciona en el entorno de pruebas Sandbox por defecto, que no devuelve ofertas reales. No hay consulta real realizada y no hemos publicado ningún precio de eBay.
 
 Referencias oficiales:
 - [Crear cuenta de desarrollador](https://developer.ebay.com/)
@@ -11,14 +11,14 @@ Referencias oficiales:
 
 ## Seguridad y coste
 El cliente obtiene un token de aplicación en backend, nunca en el navegador. Se han preparado los nombres de secretos:
-- `EBAY_CLIENT_ID`
-- `EBAY_CLIENT_SECRET`
-- `EBAY_EPN_CAMPAIGN_ID` (opcional; **solo** si existe campaña afiliada aprobada)
+- `EBAY_SANDBOX_CLIENT_ID` y `EBAY_SANDBOX_CLIENT_SECRET` para probar en Sandbox.
+- `EBAY_CLIENT_ID` y `EBAY_CLIENT_SECRET` solo en ejecución local de producción aprobada.
+- `EBAY_EPN_CAMPAIGN_ID` (opcional; **solo** con una campaña afiliada aprobada)
 
 No pongas estas claves en archivos del repositorio, chats, capturas o páginas públicas. Para introducirlas, usa **Settings → Secrets and variables → Actions → New repository secret** en GitHub. La creación de credenciales de desarrollador es gratuita según eBay, pero el acceso a Buy APIs de producción depende de aprobaciones adicionales.
 
 ## Prueba de conexión
-Una vez aprobados los permisos, desde **Actions → Probar conexión eBay (sin publicar ofertas) → Run workflow** selecciona mercado y búsqueda. La prueba solo imprime un número de resultados; no guarda ni publica precios.
+Una vez aprobados los permisos, desde **Actions → Probar conexión eBay (sin publicar ofertas) → Run workflow** selecciona mercado y búsqueda. La prueba consulta **Sandbox**, que utiliza datos de prueba y no ofertas de tiendas reales. Solo imprime el número de resultados; no guarda ni publica precios. Para probar en producción se necesita acceso aprobado y usar `EBAY_ENV=production` localmente.
 
 El script funciona también localmente desde `scripts/ebay_browse.py` con variables de entorno protegidas. Usa exclusivamente módulos estándar de Python.
 
