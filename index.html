@@ -30,7 +30,11 @@ footer{border-top:1px solid var(--line);padding:25px 0;color:var(--muted);font-s
 <header><div class="wrap nav"><div class="brand">COMPARA<span>360</span></div><div class="navright"><label for="marketSelect" class="muted" style="font-size:12px;font-weight:700">PAÍS</label><select id="marketSelect" class="pill" aria-label="Seleccionar país" onchange="changeMarket(this.value)"><option value="ES">España</option><option value="FR">Francia</option><option value="DE">Alemania</option><option value="IT">Italia</option><option value="NL">Países Bajos</option><option value="BE">Bélgica</option><option value="PT">Portugal</option><option value="IE">Irlanda</option></select><button class="pill" onclick="scrollToSection('watch')">♡ Mis alertas <b id="watchCount">0</b></button><button class="pill active" onclick="scrollToSection('products')">Explorar ofertas</button></div></div></header>
 <section class="hero"><div class="wrap"><div class="eyebrow">Compra con cabeza</div><h1>El mejor precio.<br>Sin perder horas buscándolo.</h1><p>Compara tiendas, calcula el envío y sigue la evolución de los precios desde un solo sitio.</p><div class="searchbox"><input id="search" placeholder="Busca un producto, marca o modelo…" onkeydown="if(event.key==='Enter')renderProducts()"><button class="primary" onclick="renderProducts()">Buscar ofertas →</button></div><div id="marketNotice" class="demo-note" style="display:block">Mercado seleccionado: España · Los productos y precios visibles son datos ficticios de demostración, no ofertas reales.</div><div class="demo-note">MODO DEMOSTRACIÓN · Los productos y precios mostrados son datos ficticios, no ofertas actuales.</div></div></section>
 <main class="wrap">
-<section id="products"><div class="toolbar"><h2>Ofertas para explorar</h2><select id="sort" class="pill" onchange="renderProducts()"><option value="best">Ordenar: mejor precio final</option><option value="low">Precio más bajo</option><option value="high">Precio más alto</option><option value="name">Nombre A-Z</option></select></div><div class="filters" id="filters"></div><div class="grid" id="productGrid"></div></section>
+<section class="section" id="realOffers" aria-labelledby="realOffersTitle" style="margin-top:0">
+<div class="sectionhead"><div><h2 id="realOffersTitle">Ofertas verificables</h2><p>Catálogo real separado de los productos ficticios de demostración.</p></div><span class="pill" id="realOffersCount">0 ofertas</span></div>
+<div class="grid" id="realOffersGrid" aria-live="polite"><div class="empty">Todavía no hay catálogos autorizados conectados.</div></div>
+<p class="muted" style="font-size:12px">El precio del producto no incluye envío cuando la tienda no lo facilita. Los enlaces comerciales se indicarán como afiliados cuando existan.</p></section>
+<section class="section" id="products"><div class="toolbar"><h2>Productos ficticios · Solo demostración</h2><select id="sort" class="pill" onchange="renderProducts()"><option value="best">Ordenar: mejor precio final</option><option value="low">Precio más bajo</option><option value="high">Precio más alto</option><option value="name">Nombre A-Z</option></select></div><div class="filters" id="filters"></div><div class="grid" id="productGrid"></div></section>
 <section class="section"><div class="sectionhead"><div><h2>Encuentra lo que más te conviene</h2><p>Recomendación orientativa según tu presupuesto y categoría.</p></div></div><div class="tools"><div class="tool"><h3>Recomendador COMPARA360</h3><p>Indica cuánto quieres gastar y qué buscas. El sistema te mostrará opciones del catálogo de demostración.</p><div class="row"><select id="recCat"><option value="all">Cualquier categoría</option><option>Electrónica</option><option>Informática</option><option>Hogar</option><option>Deporte</option></select><input id="budget" type="number" min="1" placeholder="Presupuesto (€)"></div><button class="primary" style="margin-top:10px;width:100%" onclick="recommend()">Recomendar productos</button><div id="recResult" style="margin-top:12px"></div></div>
 <div class="tool"><h3>¿A qué precio quieres comprar?</h3><p>Crea una alerta local para que COMPARA360 recuerde tu precio objetivo en este navegador.</p><div class="row"><select id="alertProduct"></select><input id="targetPrice" type="number" min="1" step=".01" placeholder="Precio objetivo (€)"></div><button class="primary" style="margin-top:10px;width:100%" onclick="addAlert()">Crear alerta de precio</button><p style="margin:10px 0 0;font-size:11px">En esta demo no se envían correos ni notificaciones externas.</p></div></div></section>
 <section class="section" id="watch"><div class="sectionhead"><div><h2>Mis alertas y seguimiento</h2><p>Guardado en este dispositivo mediante almacenamiento local.</p></div></div><div class="tool"><div class="watchlist" id="watchlist"><span class="muted">Todavía no tienes alertas guardadas.</span></div></div></section>
@@ -38,6 +42,82 @@ footer{border-top:1px solid var(--line);padding:25px 0;color:var(--muted);font-s
 <footer><div class="wrap footerflex"><div><b>COMPARA360</b> · Proyecto en desarrollo</div><div>DEMO: precios y tiendas ficticios. No son ofertas reales ni están disponibles para compra. Verifica siempre precio, envío y disponibilidad en la tienda.</div></div></footer>
 <div class="modalback" id="modal" onclick="if(event.target===this)closeModal()"><div class="modal" id="modalContent"></div></div><div class="toast" id="toast"></div>
 <script>
+
+const REAL_CATALOG_URL = './catalog/offers.json';
+let realOffers = [];
+function validHttpUrl(value){
+  try { const u = new URL(value); return ['https:', 'http:'].includes(u.protocol) ? u.href : null; }
+  catch { return null; }
+}
+function formatOfferMoney(value, currency, market){
+  try{return new Intl.NumberFormat(c360Markets[market]?.locale || 'es-ES',{style:'currency',currency}).format(value);}
+  catch{return String(value)+' '+currency;}
+}
+function safeText(tag,text,cls){
+  const el=document.createElement(tag);if(cls)el.className=cls;el.textContent=text;return el;
+}
+async function loadRealOffers(){
+  const grid=document.getElementById('realOffersGrid');
+  if(!grid) return;
+  grid.replaceChildren(safeText('div','Cargando catálogo autorizado…','empty'));
+  try{
+    const response=await fetch(REAL_CATALOG_URL,{cache:'no-store'});
+    if(!response.ok) throw new Error('Catálogo no disponible');
+    const data=await response.json();
+    realOffers=Array.isArray(data.offers)?data.offers:[];
+    renderRealOffers();
+  }catch(e){
+    grid.replaceChildren(safeText('div','No hay datos reales disponibles. Los productos inferiores son solo ejemplos.','empty'));
+  }
+}
+function renderRealOffers(){
+  const market=c360Market;
+  const grid=document.getElementById('realOffersGrid');
+  const count=document.getElementById('realOffersCount');
+  if(!grid) return;
+  const items=realOffers.filter(o=>
+    o && o.market===market && o.currency==='EUR' &&
+    typeof o.product_title==='string' && o.product_title.trim() &&
+    typeof o.merchant==='string' && o.merchant.trim() &&
+    Number.isFinite(o.price) && o.price>=0 &&
+    (o.shipping===null || o.shipping===undefined || Number.isFinite(o.shipping) && o.shipping>=0) &&
+    validHttpUrl(o.url) &&
+    typeof o.updated_at==='string' && !Number.isNaN(Date.parse(o.updated_at)) &&
+    Date.parse(o.updated_at)<=Date.now() + 300000
+  ).sort((a,b)=>{
+    const aa=a.shipping===null||a.shipping===undefined?Infinity:a.price+a.shipping;
+    const bb=b.shipping===null||b.shipping===undefined?Infinity:b.price+b.shipping;
+    return aa-bb;
+  });
+  count.textContent=items.length+' ofertas';
+  grid.replaceChildren();
+  if(!items.length){
+    grid.appendChild(safeText('div','Aún no hay ofertas reales autorizadas para '+c360Markets[market].name+'. Estamos preparando las conexiones con tiendas.','empty'));
+    return;
+  }
+  items.forEach(o=>{
+    const card=safeText('article','','product');
+    const header=safeText('div','','prodtop');
+    header.append(safeText('span',o.category||'Producto','cat'),safeText('span','PRECIO REAL · '+market,'save'));
+    card.append(header,safeText('h3',o.product_title),safeText('p',o.merchant,'spec'));
+    const area=safeText('div','','pricearea');
+    const inner=safeText('div','');
+    const shippingKnown=Number.isFinite(o.shipping)&&o.shipping>=0;
+    const label=shippingKnown?'Precio total (con envío)':'Precio del producto (envío no disponible)';
+    inner.append(safeText('div',label,'sub'),safeText('div',formatOfferMoney(o.price+(shippingKnown?o.shipping:0),o.currency,market),'price'));
+    area.append(inner);card.append(area);
+    const detail=safeText('div','','offers');
+    detail.append(safeText('div',shippingKnown?'Envío: '+formatOfferMoney(o.shipping,o.currency,market):'Envío: sin información','muted'));
+    detail.append(safeText('div','Actualizado: '+new Date(o.updated_at).toLocaleString(c360Markets[market].locale),'muted'));
+    card.append(detail);
+    const actions=safeText('div','','cardactions');
+    const a=safeText('a',o.affiliate?'Ir a la tienda · Enlace afiliado':'Ver en tienda','primary');
+    a.href=validHttpUrl(o.url);a.target='_blank';a.rel='noopener noreferrer'+(o.affiliate?' sponsored nofollow':'');
+    a.style.cssText='display:block;text-align:center;text-decoration:none;flex:1';
+    actions.append(a);card.append(actions);grid.append(card);
+  });
+}
+
 const products=[
 {id:'p1',name:'Auriculares inalámbricos NovaSound Pro',brand:'NovaSound',model:'NS-PRO-2',cat:'Electrónica',spec:'Cancelación de ruido · Bluetooth · Negro',offers:[['Tienda Demo A',89.90,0],['Tienda Demo B',94.90,3.99],['Tienda Demo C',99.00,0]],history:[109,105,103,99,102,95,94,89.9]},
 {id:'p2',name:'Smartwatch Active 4',brand:'Active',model:'A4-44',cat:'Deporte',spec:'GPS · 44 mm · Resistencia al agua',offers:[['Tienda Demo A',129,0],['Tienda Demo B',119,4.95],['Tienda Demo C',134.9,0]],history:[149,145,139,139,132,129,124,119]},
@@ -91,6 +171,7 @@ function changeMarket(code){
   if(select) select.value = code;
   const notice = document.getElementById('marketNotice');
   if(notice) notice.textContent = c360Markets[code].name + ' · ' + c360Markets[code].status;
+  if(typeof realOffers!=='undefined') renderRealOffers();
   toast('Mercado seleccionado: ' + c360Markets[code].name);
 }
 
@@ -98,6 +179,7 @@ if(document.getElementById('marketSelect')) document.getElementById('marketSelec
 changeMarket(c360Market);
 setAdSlotVisibility();
 init();
+loadRealOffers();
 </script>
 
 <section class="ad-slot ad-slot--footer" id="adFooter" aria-label="Espacio publicitario al pie"><strong>Publicidad</strong>Espacio reservado para publicidad adicional, siempre identificada.</section>
