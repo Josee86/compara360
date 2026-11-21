@@ -29,10 +29,10 @@ jobs:
           python-version: '3.12'
       - name: Probar búsqueda de eBay sin exportar ni guardar resultados
         env:
-          EBAY_CLIENT_ID: ${{ secrets.EBAY_CLIENT_ID }}
-          EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
-          EBAY_EPN_CAMPAIGN_ID: ${{ secrets.EBAY_EPN_CAMPAIGN_ID }}
-          MARKET: ${{ inputs.market }}
+          EBAY_ENV: sandbox
+          EBAY_SANDBOX_CLIENT_ID: ${{ secrets.EBAY_SANDBOX_CLIENT_ID }}
+          EBAY_SANDBOX_CLIENT_SECRET: ${{ secrets.EBAY_SANDBOX_CLIENT_SECRET }}
+                    MARKET: ${{ inputs.market }}
           SEARCH_QUERY: ${{ inputs.query }}
         run: |
           python scripts/ebay_browse.py --market "$MARKET" --query "$SEARCH_QUERY" --limit 10
