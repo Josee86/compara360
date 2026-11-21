@@ -16,7 +16,11 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-API = "https://api.ebay.com"
+# Sandbox is the default: safer testing before production authorization.
+ENVIRONMENT = os.environ.get("EBAY_ENV", "sandbox").lower()
+if ENVIRONMENT not in ("sandbox", "production"):
+    raise RuntimeError("EBAY_ENV debe ser sandbox o production.")
+API = "https://api.sandbox.ebay.com" if ENVIRONMENT == "sandbox" else "https://api.ebay.com"
 MARKETS = {
     "ES": "EBAY_ES", "FR": "EBAY_FR", "DE": "EBAY_DE",
     "IT": "EBAY_IT", "NL": "EBAY_NL", "BE": "EBAY_BE",
@@ -38,10 +42,11 @@ def request(url, headers, data=None):
         raise RuntimeError("No se pudo conectar con eBay.") from None
 
 def access_token():
-    client_id = os.environ.get("EBAY_CLIENT_ID", "")
-    client_secret = os.environ.get("EBAY_CLIENT_SECRET", "")
+    prefix = "EBAY_SANDBOX" if ENVIRONMENT == "sandbox" else "EBAY"
+    client_id = os.environ.get(prefix + "_CLIENT_ID", "")
+    client_secret = os.environ.get(prefix + "_CLIENT_SECRET", "")
     if not client_id or not client_secret:
-        raise RuntimeError("Faltan EBAY_CLIENT_ID o EBAY_CLIENT_SECRET en variables de entorno protegidas.")
+        raise RuntimeError("Faltan credenciales de " + ENVIRONMENT + " en variables de entorno protegidas.")
     credential = base64.b64encode((client_id + ":" + client_secret).encode()).decode()
     payload = urllib.parse.urlencode({
         "grant_type": "client_credentials",
@@ -117,8 +122,8 @@ def main():
     args = parser.parse_args()
     if not 1 <= args.limit <= 50: parser.error("El límite debe ser de 1 a 50")
     if not 2 <= len(args.query.strip()) <= 100: parser.error("La búsqueda debe tener entre 2 y 100 caracteres")
-    if args.export and os.environ.get("EBAY_EXPORT_AUTHORIZED") != "yes":
-        parser.error("La exportación requiere EBAY_EXPORT_AUTHORIZED=yes después de verificar las condiciones de eBay.")
+    if args.export and (ENVIRONMENT != "production" or os.environ.get("EBAY_EXPORT_AUTHORIZED") != "yes"):
+        parser.error("Solo se exportan datos reales de producción con EBAY_EXPORT_AUTHORIZED=yes tras verificar las condiciones de eBay.")
     now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     try:
         token = access_token()
@@ -128,7 +133,7 @@ def main():
         return 1
     items = result.get("itemSummaries", [])
     normalized = [x for i in items if (x := normalize(i, args.market, now))]
-    print("Conexión eBay correcta: %d resultados, %d precios válidos en %s." % (len(items), len(normalized), args.market))
+    print("Conexión eBay %s correcta: %d resultados, %d precios válidos en %s." % (ENVIRONMENT, len(items), len(normalized), args.market))
     if args.export:
         import pathlib
         path = pathlib.Path(args.output)
